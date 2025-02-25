@@ -1,0 +1,238 @@
+---
+Individual Level Analysis
+---
+# Load Packages and data
+```{r}
+library(lmerTest)
+library(lme4)
+library(Matrix)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+library(ggpubr)
+library(MASS)
+library(ez)
+library(ARTool)
+library(emmeans)
+library(stargazer)
+library(sjPlot)
+```
+
+```{r}
+df <- read_excel("../data/df_individual.xlsx")
+df$condition <- factor(as.character(df$condition), levels = c("240p", "480p", "1080p"))
+df$participant <- factor(as.character(df$participant))
+head(df)
+```
+# Main Analysis
+## Gaze ROI
+### Looking-partner
+#### Statistic
+```{r}
+# Box plot
+ggboxplot(df, x = "condition", y = "time_card", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Time (s)", outlier.shape = NA, width = 0.5, ylim = c(0,180), palette = "npg")
+
+
+# Basic plot
+pdf(file = "../results/plots/partner_time_box.pdf",  
+    width = 4, 
+    height = 4)
+ggboxplot(df, x = "condition", y = "time_partner", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Time (s)", outlier.shape = NA, width = 0.5, ylim = c(0,180), palette = "npg")
+dev.off()
+
+# Basic plot
+pdf(file = "../results/plots/card_time_box.pdf",  
+    width = 4, 
+    height = 4)
+ggboxplot(df, x = "condition", y = "time_card", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Time (s)", outlier.shape = NA, width = 0.5, ylim = c(0,180), palette = "npg")
+dev.off()
+```
+
+#### LMM
+```{r}
+#
+m.face.t <- lmer(time_partner ~ cq*condition + (1 | participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.face.t) #sig for resolution
+#
+m.face.n <- lmer(number_partner ~ cq*condition + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.face.n)
+#
+m.face.d <- lmer(duration_partner ~ cq*condition + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.face.d)
+```
+
+### Looking-card
+```{r}
+#
+m.card.t <- lmer(time_card ~ condition*cq + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.card.t) # sig for resolution
+#
+m.card.n <- lmer(number_card ~ condition*cq + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.card.n) # sig for resolution
+#
+m.card.d <- lmer(duration_card ~ condition*cq + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.card.d)
+```
+
+### Looking-room
+```{r}
+#
+m.room.t <- lmer(time_room ~ condition*cq + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.room.t)
+#
+m.room.n <- lmer(number_room ~ condition*cq + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.room.n)
+#
+m.room.d <- lmer(duration_room ~ condition*cq + (1|participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.room.d) # sig for cq
+```
+
+### Significiant results
+```{r}
+# looking-partner
+performance::icc(m.face.t)
+m.face.t %>% anova()
+sjPlot::plot_model(m.face.t, type = "pred", terms = c("cq", "condition"), colors = "social")
+pdf(file = "../results/plots/m_partner_t.pdf",   
+    width = 6,
+    height = 4) 
+sjPlot::plot_model(m.face.t, type = "pred", colors = "social", terms = c("cq", "condition"), title = "") + labs(x = "Conversatinal Quality", y="Time (s)")
+dev.off()
+sjPlot::tab_model(m.face.t)
+tab_model(m.face.t, file="../results/model/m_partner_t.html")
+```
+```{r}
+# Looking-card time
+performance::icc(m.card.t)
+m.card.t %>% anova()
+#
+pdf(file = "../results/plots/m_card_t.pdf", 
+    width = 6, 
+    height = 4) 
+sjPlot::plot_model(m.card.t, type = "pred", colors = "social", terms = c("cq", "condition"), title = "") + labs(x = "Conversatinal Quality", y="Time (s)")
+dev.off()
+#
+sjPlot::tab_model(m.card.t)
+tab_model(m.card.t, file="../results/model/m_card_t.html")
+
+# Looking-card number
+performance::icc(m.card.n)
+m.card.n %>% anova()
+#
+pdf(file = "../results/plots/m_card_n.pdf", 
+    width = 6, 
+    height = 4) 
+sjPlot::plot_model(m.card.t, type = "pred", terms = c("cq", "condition")) + labs(x = "Conversatinal Quality", y="Time (s)", title ="Predicted values of number looking-card")
+dev.off()
+#
+sjPlot::tab_model(m.card.n)
+tab_model(m.card.t, file="../results/model/m_card_n.html")
+```
+
+```{r}
+# Looking-room
+performance::icc(m.room.d)
+m.room.d %>% anova()
+sjPlot::plot_model(m.room.d, type = "pred", terms = c("cq", "condition"))
+#
+pdf(file = "../results/plots/m_room_d.pdf", 
+    width = 6, 
+    height = 4) 
+sjPlot::plot_model(m.card.d, type = "pred", terms = c("cq", "condition")) + labs(x = "Conversatinal Quality", y="Time (s)", title ="Predicted values of duration looking-room")
+dev.off()
+#
+sjPlot::tab_model(m.room.d)
+tab_model(m.room.d, file="../results/model/m_room_d.html")
+##
+tab_model(m.face.t, m.card.t, m.card.n,m.room.d,  file="../results/model/gaze_all.html")
+```
+## AU12
+```{r}
+# Model au12_r from cq & video resolution
+m.au12 <- lmer(au12_r ~ condition*cq + (1 | participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.au12) # sig positive effect for only cq
+performance::icc(m.au12)
+m.au12 %>% anova()
+sjPlot::plot_model(m.au12, type = "pred", terms = c("cq", "condition"))
+
+pdf(file = "../results/plots/m_au12.pdf",
+    width = 6, 
+    height = 4) 
+sjPlot::plot_model(m.au12, type = "pred", terms = c("cq", "condition")) + labs(x = "Conversatinal Quality", y="AU12 Intensity", title="Predicted Values of AU12 Intensity")
+
+dev.off()
+sjPlot::tab_model(m.au12)
+```
+## AU06
+```{r}
+# Model au06_r with resolution & cq
+m.au06 <- lmer(au06_r ~ condition*cq + (1 | participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.au06) # H1 sig
+performance::icc(m.au06)
+m.au06 %>% anova()
+pdf(file = "../results/plots/m_au06.pdf",   
+    width = 6, 
+    height = 4)
+sjPlot::plot_model(m.au06, type = "pred", colors = "social", terms = c("cq", "condition"), title = "") + labs(x = "Conversatinal Quality", y="Intensity")
+
+dev.off()
+sjPlot::tab_model(m.au06)
+tab_model(m.au06, m.au12, file="../results/model/au_all.html")
+```
+## Body Motion
+### Statistic
+```{r}
+
+# Summary statistics
+df %>%
+  group_by(condition) %>%
+  get_summary_stats(mea, type = "common")
+
+df %>%
+  group_by(cq_level) %>%
+  get_summary_stats(mea, type = "common")
+# Box plot
+ggboxplot(df, x = "condition", y = "mea", add = "jitter", xlab = "Video resolution", ylab = "Body motion energy", outlier.shape = NA, width = 0.7, size = 0.01, ylim = c(0,4000), palette = "lancet")
+ggboxplot(df, x = "cq_level", y = "mea", add = "jitter")
+
+ggboxplot(df, x = "condition", y = "time_partner", fill = "condition", add = "jitter", xlab = "Video resolution", ylab = "Looking-partner (s)", outlier.shape = NA, width = 0.5, size = 0.01, palette = "npg")
+
+ggboxplot(df, x = "condition", y = "time_card", add = "jitter", xlab = "Video resolution", ylab = "Looking-card (s)", outlier.shape = NA, width = 0.7, size = 0.01, palette = "lancet")
+
+ggboxplot(df, x = "condition", y = "au06_r", add = "jitter", xlab = "Video resolution", ylab = "AU06 activity", outlier.shape = NA, width = 0.7, size = 0.01, palette = "lancet")
+
+# Basic plot
+pdf(file = "../results/plots/bm_box.pdf",  
+    width = 6, 
+    height = 4)
+ggboxplot(df, x = "condition", y = "mea", add = "mean_ci", xlab = "Video resolution", ylab = "Body motion energy", outlier.shape = NA, width = 0.7, size = 0.01, ylim = c(0,4000), palette = "lancet")
+dev.off()
+
+# Basic plot
+pdf(file = "../results/plots/bm_cq_box.pdf",  
+    width = 6, 
+    height = 4)
+ggplot(df, aes(x = cq_level, y = mea, fill=cq_level)) + 
+  geom_boxplot(width=0.3) + 
+  geom_point(position = position_jitter(width = 0.2), alpha=0.5) +
+  theme_minimal() +
+  labs(
+       x = "Conversational Quality", 
+       y = "Body Motion Energy")
+dev.off()
+```
+### Significiant results plot
+```{r}
+m.bm <- lmer(mea ~ condition*cq + (1 | participant), data = df, control = lmerControl(optimizer="bobyqa", calc.derivs = FALSE, optCtrl=list(maxfun=2e5)),na.action = "na.exclude")
+summary(m.bm) # H1 sig
+performance::icc(m.bm)
+sjPlot::plot_model(m.bm, type = "pred", terms = c("cq","condition"))
+m.bm %>% anova()
+pdf(file = "../results/plots/m_bm.pdf",   
+    width = 6,
+    height = 4) 
+sjPlot::plot_model(m.bm, type = "pred", colors = "social", terms = c("cq", "condition"), title = "") + labs(x = "Conversatinal Quality", y="Body motion energy")
+dev.off()
+sjPlot::tab_model(m.bm)
+tab_model(m.bm, file="../results/model/m_bm.html")
+```

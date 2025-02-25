@@ -1,0 +1,298 @@
+---
+Validation for comparing with pseudo-interaction body movement synchrony and facial mimicry
+---
+# Pseudo validation
+```{r}
+library(rMEA)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+library(psych)
+library(ggpubr)
+library(effsize)
+library(lmerTest)
+library(lme4)
+library(Matrix)
+library(MASS)
+library(ez)
+library(ARTool)
+library(emmeans)
+library(stargazer)
+library(sjPlot)
+library(broom)
+```
+
+### Body motion energy
+```{r}
+mea_1080p <- readMEA("../data/real_dyads/body_motion/1080p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+mea_480p <- readMEA("../data/real_dyads/body_motion/480p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+mea_240p <- readMEA("../data/real_dyads/body_motion/240p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+## combine into a single object
+mea_all <- c(mea_1080p, mea_480p, mea_240p)
+mea_all <- setGroup(mea_all, "Real")
+```
+
+```{r}
+mea_smooth <- MEAsmooth(mea_all, moving.average.win = 0.5)
+mea_scale <- MEAscale(mea_smooth, scale = "sd", removeNA = TRUE)
+mea_clean <- MEAoutlier(mea_scale, threshold=function(x){sd(x)*10},direction="greater")
+```
+```{r}
+plot(mea_all[[1]])
+plot(mea_clean[[1]])
+```
+
+
+```{r}
+#mea_random <- shuffle(mea_clean, size = 100)
+#mea_random <- setGroup(mea_random, "Pseudo")
+#writeMEA(mea_random,"pseudo_dyads/body_motion", what = "mea")
+mea_random <- readMEA("../data/pseudo_dyads/body_motion", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+summary(mea_random)
+```
+
+#### wlcc for real and fake
+```{r}
+mea_all_ccf <- MEAccf(mea_clean, lagSec = 5, winSec = 30, incSec = 10, r2Z = TRUE, ABS = TRUE)
+mea_random_ccf <- MEAccf(mea_random, lagSec = 5, winSec = 30, incSec = 10, r2Z = TRUE, ABS = TRUE)
+```
+```{r}
+pdf(file = "../results/plots/lag_bm_pseudo.pdf",   
+    width = 10, 
+    height = 5) 
+MEAlagplot(mea_all_ccf, contrast = mea_random_ccf, by.group = TRUE)
+dev.off()
+#
+pdf(file = "../results/plots/dist_bm_pseudo.pdf",   
+    width = 6, 
+    height = 4) 
+MEAdistplot(mea_all_ccf, contrast = mea_random_ccf, by = "group")
+dev.off()
+MEAlagplot(mea_all_ccf, contrast = mea_random_ccf, by.group = TRUE)
+MEAdistplot(mea_all_ccf, contrast = mea_random_ccf, by = "group")
+```
+#### t-test
+```{r}
+avg_ccf_all <- getCCF(mea_all_ccf, type = "grandAver")
+avg_ccf_random <- getCCF(mea_random_ccf, type = "grandAver")
+result_independent <- t.test(avg_ccf_all, avg_ccf_random)
+# Viewing the results
+#print(result_independent)
+cohens_d(avg_ccf_all, avg_ccf_random)
+tidy_res <- tidy(result_independent)
+print(tidy_res)
+```
+#### box-plot
+```{r}
+ds <- data.frame("Synchrony" = c(avg_ccf_all), "Group" = group(mea_all_ccf))
+describe(ds)
+ds_random <- data.frame("Synchrony" = c(avg_ccf_random), "Group" = group(mea_random_ccf))
+describe(ds_random)
+ds_new <- rbind(ds, ds_random)
+
+# Create a boxplot by group
+#boxplot(Synchrony ~ Group, data = ds_new, ylab = "Global synchrony")
+ggboxplot(data = ds_new, x = "Group", y = "Synchrony", add = "jitter", fill ="Group", width = 0.5, ylab = "Global synchrony", palette = "npg")
+
+
+# Basic plot
+pdf(file = "../results/plots/b_pseudo_box.pdf",  
+    width = 4, 
+    height = 4)
+ggboxplot(data = ds_new, x = "Group", y = "Synchrony", add = "jitter", fill ="Group", width = 0.5, ylab = "Global synchrony", palette = "npg")
+dev.off()
+```
+## Facial action units
+### AU12
+```{r}
+## resolution
+au12_1080p <- readMEA("../data/real_dyads/au12_r/1080p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+au12_480p <- readMEA("../data/real_dyads/au12_r/480p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+au12_240p <- readMEA("../data/real_dyads/au12_r/240p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+## combine into a single object
+au12_all <- c(au12_1080p, au12_480p, au12_240p)
+au12_all <- setGroup(au12_all, "Real")
+```
+```{r}
+au12_smooth <- MEAsmooth(au12_all, moving.average.win = 0.5)
+au12_scale <- MEAscale(au12_smooth, scale = "sd", removeNA = TRUE)
+au12_clean <- MEAoutlier(au12_scale, threshold=function(x){sd(x)*10},direction="greater")
+```
+```{r}
+## Generate a random sample
+#au12_random <- shuffle(au12_clean, size = 100)
+#au12_random <- setGroup(au12_random, "Pseudo")
+#writeMEA(au12_random,"pseudo_dyads/au12", what = "mea")
+au12_random <- readMEA("../data/pseudo_dyads/au12", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+summary(au12_random)
+```
+
+#### wlcc for real and fake
+
+```{r}
+au12_all_ccf <- MEAccf(au12_clean, lagSec = 5, winSec = 30, incSec = 10, r2Z = TRUE, ABS = TRUE)
+au12_random_ccf <- MEAccf(au12_random, lagSec = 5, winSec = 30, incSec = 10, r2Z = TRUE, ABS = TRUE)
+```
+```{r}
+pdf(file = "../results/plots/lag_au12_pseudo.pdf",   
+    width = 6, 
+    height = 4) 
+MEAlagplot(au12_all_ccf, contrast = au12_random_ccf, by.group = TRUE)
+dev.off()
+#
+pdf(file = "../results/plots/dist_au12_pseudo.pdf",  
+    width = 6, 
+    height = 4) 
+MEAdistplot(au12_all_ccf, contrast = au12_random_ccf, by = "group")
+dev.off()
+MEAlagplot(au12_all_ccf, contrast = au12_random_ccf, by.group = TRUE)
+MEAdistplot(au12_all_ccf, contrast = au12_random_ccf, by = "group")
+```
+#### t-test
+```{r}
+avg_au12_all <- getCCF(au12_all_ccf, type = "grandAver")
+avg_au12_random <- getCCF(au12_random_ccf, type = "grandAver")
+result_independent <- t.test(avg_au12_all, avg_au12_random)
+#print(result_independent)
+cohens_d(avg_au12_all, avg_au12_random)
+tidy_res <- tidy(result_independent)
+print(tidy_res)
+```
+#### box-plot
+```{r}
+ds <- data.frame("Synchrony" = c(avg_au12_all), "Group" = group(au12_all_ccf))
+describe(ds)
+ds_random <- data.frame("Synchrony" = c(avg_au12_random), "Group" = group(au12_random_ccf))
+describe(ds_random)
+ds_new <- rbind(ds, ds_random)
+
+# Basic plot
+# Basic plot
+pdf(file = "../results/plots/au12_pseudo_box.pdf",  
+    width = 4, 
+    height = 4)
+ggboxplot(data = ds_new, x = "Group", y = "Synchrony", add = "jitter", fill ="Group", width = 0.5, ylab = "Global synchrony", palette = "npg")
+dev.off()
+
+ggplot(ds_new, aes(x = Group, y = Synchrony, fill=Group)) + 
+  geom_boxplot(width=0.3) + 
+  geom_point(position = position_jitter(width = 0.2), alpha=0.5) +
+  theme_minimal() +
+  labs(
+       x = "Group", 
+       y = "Global Synchrony of AU12")
+```
+### AU06
+```{r}
+## resolution
+au06_1080p <- readMEA("../data/real_dyads/au06_r/1080p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+au06_480p <- readMEA("../data/real_dyads/au06_r/480p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+au06_240p <- readMEA("../data/real_dyads/au06_r/240p", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+
+## combine into a single object
+au06_all <- c(au06_1080p, au06_480p, au06_240p)
+au06_all <- setGroup(au06_all, "Real")
+```
+
+```{r}
+au06_smooth <- MEAsmooth(au06_all, moving.average.win = 0.5)
+au06_scale <- MEAscale(au06_smooth, scale = "sd", removeNA = TRUE)
+au06_clean <- MEAoutlier(au06_scale, threshold=function(x){sd(x)*10},direction="greater")
+```
+```{r}
+## Generate a random sample
+#au06_random <- shuffle(au06_clean, size = 100)
+#au06_random <- setGroup(au06_random, "Pseudo")
+#writeMEA(au06_random,"pseudo_dyads/au06", what = "mea")
+au06_random <- readMEA("../data/pseudo_dyads/au06", sampRate = 30, s1Col = 1, s2Col = 2,
+                     s1Name = "Participant_A", s2Name = "Participant_B", skip=1,
+                     idOrder = c("group","id","session"), idSep = "_")
+summary(au06_random)
+```
+
+#### wlcc for real and fake
+```{r}
+au06_all_ccf <- MEAccf(au06_clean, lagSec = 5, winSec = 30, incSec = 10, r2Z = TRUE, ABS = TRUE)
+au06_random_ccf <- MEAccf(au06_random, lagSec = 5, winSec = 30, incSec = 10, r2Z = TRUE, ABS = TRUE)
+```
+```{r}
+pdf(file = "../results/plots/lag_au06_pseudo.pdf",   
+    width = 6,
+    height = 4) 
+MEAlagplot(au06_all_ccf, contrast = au06_random_ccf, by.group = TRUE)
+dev.off()
+
+#
+pdf(file = "../results/plots/dist_au06_pseudo.pdf",  
+    width = 6, 
+    height = 4) 
+MEAdistplot(au06_all_ccf, contrast = au06_random_ccf, by = "group")
+dev.off()
+MEAlagplot(au06_all_ccf, contrast = au06_random_ccf, by.group = TRUE)
+MEAdistplot(au06_all_ccf, contrast = au06_random_ccf, by = "group")
+```
+#### t-test
+```{r}
+avg_au06_all <- getCCF(au06_all_ccf, type = "grandAver")
+avg_au06_random <- getCCF(au06_random_ccf, type = "grandAver")
+result_independent <- t.test(avg_au06_all, avg_au06_random)
+# Viewing the results
+print(result_independent)
+cohens_d(avg_au06_all, avg_au06_random)
+tidy_res <- tidy(result_independent)
+print(tidy_res)
+```
+#### box-plot
+```{r}
+ds <- data.frame("Synchrony" = c(avg_au06_all), "Group" = group(au06_all_ccf))
+describe(ds)
+ds_random <- data.frame("Synchrony" = c(avg_au06_random), "Group" = group(au06_random_ccf))
+describe(ds_random)
+ds_new <- rbind(ds, ds_random)
+
+
+# Basic plot
+pdf(file = "../results/plots/au06_pseudo_box.pdf",  
+    width = 4, 
+    height = 4)
+ggboxplot(data = ds_new, x = "Group", y = "Synchrony", add = "jitter", fill ="Group", width = 0.5, ylab = "Global synchrony", palette = "npg")
+dev.off()
+
+ggplot(ds_new, aes(x = Group, y = Synchrony, fill=Group)) + 
+  geom_boxplot(width=0.3) + 
+  geom_point(position = position_jitter(width = 0.2), alpha=0.5) +
+  theme_minimal() +
+  labs(
+       x = "Group", 
+       y = "Global Synchrony of AU06")
+```

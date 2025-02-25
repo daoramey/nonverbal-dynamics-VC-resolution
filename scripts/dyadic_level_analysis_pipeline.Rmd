@@ -1,0 +1,557 @@
+# Dyadic level synchrony analysis
+```{r}
+library(ggplot2)
+library(readxl)
+library(lme4)
+library(dunn.test)
+library(crqa)
+library(lmerTest)
+library(ARTool)
+library(tidyr)
+library(dplyr)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(sjPlot)
+```
+## Mutual gaze
+```{r}
+df_g <- read_excel("../data/df_dyadic_gaze.xlsx")
+df_g$condition <- factor(as.character(df_g$condition), levels = c("240p", "480p", "1080p"))
+df_g$cq_level <- factor(as.character(df_g$cq_level), levels = c("Bad", "Poor", "Fair", "Good", "Excellent"))
+df_g$dyadic <- factor(as.character(df_g$dyadic))
+head(df_g)
+```
+### Statistics
+```{r}
+# Summary statistics
+df_g %>%
+  group_by(condition) %>%
+  get_summary_stats(n_mutual_gaze, type = "common")
+
+df_g %>%
+  group_by(cq_level) %>%
+  get_summary_stats(n_mutual_gaze, type = "common")
+
+df_g %>%
+  group_by(condition) %>%
+  get_summary_stats(t_mutual_gaze, type = "common")
+
+df_g %>%
+  group_by(cq_level) %>%
+  get_summary_stats(t_mutual_gaze, type = "common")
+
+# Basic plot
+#pdf(file = "../results/plots/mutual_time_box.pdf",  
+#    width = 4, 
+#    height = 4)
+#ggboxplot(df_g, x = "condition", y = "t_mutual_gaze", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Time (s)", outlier.shape = NA, width = 0.5, ylim = c(0,75), palette = "npg")
+#dev.off()
+
+# Basic plot
+#pdf(file = "plots/mutual_number_box.pdf", width = 4, height = 4)
+#ggboxplot(df_g, x = "condition", y = "n_mutual_gaze", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Number", outlier.shape = NA, width = 0.5, ylim = c(0,50), palette = "npg")
+#dev.off()
+```
+### Correlation
+```{r}
+# Correlation check
+# Perform the correlation test
+result <- cor.test(df_g$t_mutual_gaze, df_g$n_mutual_gaze)
+print(result)
+
+# 
+result <- cor.test(df_g$t_mutual_gaze, df_g$d_mutual_gaze)
+print(result)
+
+#
+result <- cor.test(df_g$n_mutual_gaze, df_g$d_mutual_gaze)
+print(result)
+```
+
+### Mixed effect model
+```{r}
+# Fit the model
+m.gn <- lmer(n_mutual_gaze ~ cq*condition + (1 | dyadic), data=df_g)
+summary(m.gn) # sig
+performance::icc(m.gn)
+m.gn %>% anova()
+#sjPlot::plot_model(m.gn, type = "pred", terms = c("cq", "condition"))
+#sjPlot::tab_model(m.gn)
+
+# Fit the model
+m.gt <- lmer(t_mutual_gaze ~ cq*condition + (1 | dyadic), data=df_g)
+summary(m.gt) # sig
+performance::icc(m.gt)
+m.gt %>% anova()
+#sjPlot::plot_model(m.gt, type = "pred", terms = c("cq", "condition"))
+
+# Fit the model
+m.gd <- lmer(d_mutual_gaze ~ cq*condition + (1 | dyadic), data=df_g)
+summary(m.gd) # no sig
+performance::icc(m.gd)
+m.gd %>% anova()
+#sjPlot::plot_model(m.gd, type = "pred", terms = c("cq", "condition"))
+#sjPlot::tab_model(m.gd)
+
+sjPlot::tab_model(m.gt, m.gn, m.gd)
+tab_model(m.gt, m.gn, m.gd, file="../results/model/m_mutual_gaze.html")
+```
+## Body movement coordination
+```{r}
+df <- read_excel("../data/df_dyadic_bm.xlsx")
+df$condition <- factor(as.character(df$condition), levels = c("240p", "480p", "1080p"))
+df$cq_level <- factor(as.character(df$cq_level), levels = c("Bad", "Poor", "Fair", "Good", "Excellent"))
+df$dyadic <- factor(as.character(df$dyadic))
+head(df)
+```
+### The influence of mutual gaze
+```{r}
+# Fit the model
+m.lz.ng <- lmer(lag_zero ~ n_mutual_gaze + (1 | dyadic), data=df)
+m.ps.ng <- lmer(peak_synchrony ~ n_mutual_gaze + (1 | dyadic), data=df)
+m.gs.ng <- lmer(global_synchrony ~ n_mutual_gaze + (1 | dyadic), data=df)
+m.pl.ng <- lmer(abs_peak_lag ~ n_mutual_gaze + (1 | dyadic), data=df)
+#
+summary(m.gs.ng) # trend global synchrony
+summary(m.ps.ng)
+summary(m.pl.ng)
+summary(m.lz.ng) # sig lag zero synchrony
+
+tab_model(m.gs.ng, m.ps.ng, m.pl.ng, m.lz.ng, file="../results/model/bm_mutual_gaze.html")
+```
+```{r}
+# sig
+performance::icc(m.lz.ng)
+m.lz.ng %>% anova()
+#sjPlot::plot_model(m.lz.ng, type = "pred", terms = c("n_mutual_gaze"))
+sjPlot::tab_model(m.lz.ng)
+# trend 
+performance::icc(m.gs.ng)
+m.gs.ng %>% anova()
+#sjPlot::plot_model(m.gs.ng, type = "pred", terms = c("n_mutual_gaze"))
+sjPlot::tab_model(m.gs.ng)
+```
+
+
+```{r}
+# Fit the model
+m.lz.tg <- lmer(lag_zero ~ t_mutual_gaze + (1 | dyadic), data=df)
+m.ps.tg <- lmer(peak_synchrony ~ t_mutual_gaze + (1 | dyadic), data=df)
+m.gs.tg <- lmer(global_synchrony ~ t_mutual_gaze + (1 | dyadic), data=df)
+m.pl.tg <- lmer(abs_peak_lag ~ t_mutual_gaze + (1 | dyadic), data=df)
+#
+summary(m.gs.tg)
+summary(m.ps.tg ) 
+summary(m.pl.tg)
+summary(m.lz.tg) # sig
+```
+
+```{r}
+# sig
+performance::icc(m.lz.tg)
+m.lz.tg %>% anova()
+#sjPlot::plot_model(m.lz.tg, type = "pred", terms = c("t_mutual_gaze"))
+sjPlot::tab_model(m.lz.tg)
+```
+
+
+```{r}
+# Fit the model
+m.lz.dg <- lmer(lag_zero ~ d_mutual_gaze + (1 | dyadic), data=df)
+m.ps.dg <- lmer(peak_synchrony ~ d_mutual_gaze + (1 | dyadic), data=df)
+m.gs.dg <- lmer(global_synchrony ~ d_mutual_gaze + (1 | dyadic), data=df)
+m.pl.dg <- lmer(abs_peak_lag ~ d_mutual_gaze + (1 | dyadic), data=df)
+#
+summary(m.lz.dg) 
+summary(m.ps.dg ) 
+summary(m.gs.dg) 
+summary(m.pl.dg)
+```
+
+### Global synchrony
+#### Statistics
+```{r}
+# Summary statistics
+df %>%
+  group_by(condition) %>%
+  get_summary_stats(global_synchrony, type = "common")
+
+df %>%
+  group_by(cq_level) %>%
+  get_summary_stats(global_synchrony, type = "common")
+
+# Basic plot
+ggboxplot(df, x = "condition", y = "global_synchrony", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Global synchrony level", outlier.shape = NA, width = 0.5, palette = "npg")
+
+#pdf(file = "plots/gs_bm_box.pdf", width = 4, height = 4)
+#ggboxplot(df, x = "condition", y = "global_synchrony", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Global synchrony level", outlier.shape = NA, width = 0.5, palette = "npg")
+#dev.off()
+```
+
+#### Mixed effect model
+```{r}
+# Fit the model
+m.gs <- lmer(global_synchrony ~ condition*cq + (1 | dyadic), data=df)
+summary(m.gs)
+performance::icc(m.gs)
+m.gs %>% anova()
+sjPlot::plot_model(m.gs, type = "pred", terms = c("condition"))
+sjPlot::tab_model(m.gs)
+```
+### Lag zero synchrony
+#### Statistics
+```{r}
+# Summary statistics
+df %>%
+  group_by(condition) %>%
+  get_summary_stats(lag_zero, type = "common")
+
+df %>%
+  group_by(cq_level) %>%
+  get_summary_stats(lag_zero, type = "common")
+
+# Box plot
+#ggboxplot(df, x = "condition", y = "lag_zero", add = "jitter")
+#ggboxplot(df, x = "cq_level", y = "lag_zero", add = "jitter")
+```
+
+#### Mixed effects model
+```{r}
+# Fit the model
+m.lz <- lmer(lag_zero ~ condition + cq + (1 | dyadic), data=df)
+summary(m.lz)
+performance::icc(m.lz)
+m.lz %>% anova()
+#sjPlot::plot_model(m.lz, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.lz)
+```
+### Peak synchrony
+#### Statistics
+```{r}
+# Summary statistics
+df %>%
+  group_by(condition) %>%
+  get_summary_stats(peak_synchrony, type = "common")
+
+df %>%
+  group_by(cq_level) %>%
+  get_summary_stats(peak_synchrony, type = "common")
+
+# Basic plot
+pdf(file = "../results/plots/ps_bm_box.pdf",  
+    width = 4, 
+    height = 4)
+ggboxplot(df, x = "condition", y = "peak_synchrony", add = "jitter", fill = "condition", xlab = "Video resolution", ylab = "Peak synchrony level", outlier.shape = NA, width = 0.5, palette = "npg")
+dev.off()
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.ps <- lmer(peak_synchrony ~ condition + cq + (1 | dyadic), data=df)
+summary(m.ps) # sig decreasing
+performance::icc(m.ps)
+m.ps %>% anova()
+#sjPlot::plot_model(m.ps, type = "pred", terms = c("condition"))
+sjPlot::tab_model(m.ps)
+```
+### Peak lag
+#### Statistics
+```{r}
+# Summary statistics
+df %>%
+  group_by(condition) %>%
+  get_summary_stats(abs_peak_lag, type = "common")
+
+df %>%
+  group_by(cq_level) %>%
+  get_summary_stats(abs_peak_lag, type = "common")
+```
+
+#### Mixed effects model
+```{r}
+# Fit the model
+m.pk <- lmer(abs_peak_lag ~ condition*cq + (1 | dyadic), data=df)
+summary(m.pk)
+#sjPlot::plot_model(m.pk, type = "pred", terms = c("cq", "condition"))
+```
+```{r}
+tab_model(m.gs,m.lz, m.ps, m.pk, file="../results/model/m_bm.html")
+```
+
+## AU06
+```{r}
+df_au06 <- read_excel("../data/df_dyadic_au06.xlsx")
+df_au06$condition <- factor(as.character(df_au06$condition), levels = c("240p", "480p", "1080p"))
+df_au06$cq_level <- factor(as.character(df_au06$cq_level), levels = c("Bad", "Poor", "Fair", "Good", "Excellent"))
+df_au06$dyadic <- factor(as.character(df_au06$dyadic))
+df_au06$A_or_B <- factor(as.character(df_au06$A_or_B))
+head(df_au06)
+```
+
+### The influence of mutual gaze
+```{r}
+# Fit the model
+m.au06.lz.gn <- lmer(lag_zero ~ n_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.ps.gn <- lmer(peak_synchrony ~ n_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.gs.gn <- lmer(global_synchrony ~ n_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.pl.gn <- lmer(abs_peak_lag ~ n_mutual_gaze + (1 | dyadic), data=df_au06)
+#
+summary(m.au06.lz.gn) 
+summary(m.au06.ps.gn) 
+summary(m.au06.gs.gn) # trend
+summary(m.au06.pl.gn) # trend
+
+# Fit the model
+m.au06.lz.gt <- lmer(lag_zero ~ t_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.ps.gt <- lmer(peak_synchrony ~ t_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.gs.gt <- lmer(global_synchrony ~ t_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.pl.gt <- lmer(abs_peak_lag ~ t_mutual_gaze + (1 | dyadic), data=df_au06)
+#
+summary(m.au06.lz.gt) # sig
+summary(m.au06.ps.gt) # trend
+summary(m.au06.gs.gt) 
+summary(m.au06.pl.gt) # sig
+
+# Fit the model
+m.au06.lz.gd <- lmer(lag_zero ~ d_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.ps.gd <- lmer(peak_synchrony ~ d_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.gs.gd <- lmer(global_synchrony ~ d_mutual_gaze + (1 | dyadic), data=df_au06)
+m.au06.pl.gd <- lmer(abs_peak_lag ~ d_mutual_gaze + (1 | dyadic), data=df_au06)
+#
+summary(m.au06.lz.gd) 
+summary(m.au06.ps.gd) 
+summary(m.au06.gs.gd) 
+summary(m.au06.pl.gd) # trend
+```
+### Global synchrony
+#### Statistics
+```{r}
+# Summary statistics
+df_au06 %>%
+  group_by(condition) %>%
+  get_summary_stats(global_synchrony, type = "common")
+
+df_au06 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(global_synchrony, type = "common")
+
+# Box plot
+#ggboxplot(df_au06, x = "condition", y = "global_synchrony", add = "jitter")
+#ggboxplot(df_au06, x = "cq_level", y = "global_synchrony", add = "jitter")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au06.gs <- lmer(global_synchrony ~ cq*condition + (1 | dyadic), data = df_au06)
+summary(m.au06.gs)
+performance::icc(m.au06.gs)
+m.au06.gs %>% anova()
+sjPlot::plot_model(m.au06.gs, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au06.gs)
+```
+### Lag zero synchrony
+#### Statistics
+```{r}
+# Summary statistics
+df_au06 %>%
+  group_by(condition) %>%
+  get_summary_stats(lag_zero, type = "common")
+
+df_au06 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(lag_zero, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au06.lz <- lmer(lag_zero ~ cq*condition + (1 | dyadic), data = df_au06)
+summary(m.au06.lz)
+performance::icc(m.au06.lz)
+m.au06.lz %>% anova()
+#sjPlot::plot_model(m.au06.lz, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au06.lz)
+```
+### Peak synchrony
+#### Statistics
+```{r}
+# Summary statistics
+df_au06 %>%
+  group_by(condition) %>%
+  get_summary_stats(peak_synchrony, type = "common")
+
+df_au06 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(peak_synchrony, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au06.ps <- lmer(peak_synchrony ~ cq*condition + (1 | dyadic), data = df_au06)
+summary(m.au06.ps)
+performance::icc(m.au06.ps)
+m.au06.ps %>% anova()
+#sjPlot::plot_model(m.au06.ps, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au06.ps)
+```
+### Peak lag
+#### Statistics
+```{r}
+# Summary statistics
+df_au06 %>%
+  group_by(condition) %>%
+  get_summary_stats(abs_peak_lag, type = "common")
+
+df_au06 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(abs_peak_lag, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au06.pl <- lmer(abs_peak_lag ~ cq*condition + (1 | dyadic), data = df_au06)
+summary(m.au06.pl) # sig cq decrease but in a good way near lag0
+performance::icc(m.au06.pl)
+m.au06.pl %>% anova()
+sjPlot::plot_model(m.au06.pl, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au06.pl)
+pdf(file = "../results/plots/m_pl_au06.pdf",   
+    width = 6,
+    height = 4) 
+sjPlot::plot_model(m.au06.pl, type = "pred", colors = "social", terms = c("cq", "condition"), title = "") + labs(x = "Conversatinal Quality", y="Peak lag (s)")
+dev.off()
+```
+## AU12
+```{r}
+df_au12 <- read_excel("../data/df_dyadic_au12.xlsx")
+df_au12$condition <- factor(as.character(df_au12$condition), levels = c("480p", "240p",  "1080p"))
+df_au12$cq_level <- factor(as.character(df_au12$cq_level), levels = c("Bad", "Poor", "Fair", "Good", "Excellent"))
+df_au12$dyadic <- factor(as.character(df_au12$dyadic))
+df_au12$A_or_B <- factor(as.character(df_au12$A_or_B))
+head(df_au12)
+```
+### The influence of mutual gaze
+```{r}
+# Fit the model
+m.au12.lz.gn <- lmer(lag_zero ~ n_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.ps.gn <- lmer(peak_synchrony ~ n_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.gs.gn <- lmer(global_synchrony ~ n_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.pl.gn <- lmer(abs_peak_lag ~ n_mutual_gaze + (1 | dyadic), data=df_au12)
+#
+summary(m.au12.lz.gn) 
+summary(m.au12.ps.gn) 
+summary(m.au12.gs.gn) 
+summary(m.au12.pl.gn) 
+
+# Fit the model
+m.au12.lz.gt <- lmer(lag_zero ~ t_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.ps.gt <- lmer(peak_synchrony ~ t_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.gs.gt <- lmer(global_synchrony ~ t_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.pl.gt <- lmer(abs_peak_lag ~ t_mutual_gaze + (1 | dyadic), data=df_au12)
+#
+summary(m.au12.lz.gt) # sig
+summary(m.au12.ps.gt) 
+summary(m.au12.gs.gt) 
+summary(m.au12.pl.gt) # sig
+
+# Fit the model
+m.au12.lz.gd <- lmer(lag_zero ~ d_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.ps.gd <- lmer(peak_synchrony ~ d_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.gs.gd <- lmer(global_synchrony ~ d_mutual_gaze + (1 | dyadic), data=df_au12)
+m.au12.pl.gd <- lmer(abs_peak_lag ~ d_mutual_gaze + (1 | dyadic), data=df_au12)
+#
+summary(m.au12.lz.gd)
+summary(m.au12.ps.gd) 
+summary(m.au12.gs.gd) # trend
+summary(m.au12.pl.gd) # sig
+```
+### Global synchrony
+#### Statistics
+```{r}
+df_au12 %>%
+  group_by(condition) %>%
+  get_summary_stats(global_synchrony, type = "common")
+
+df_au12 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(global_synchrony, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au12.gs <- lmer(global_synchrony ~ condition*cq + (1 | dyadic), data = df_au12)
+summary(m.au12.gs) # sig for cq
+performance::icc(m.au12.gs)
+m.au12.gs %>% anova()
+sjPlot::plot_model(m.au12.gs, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au12.gs)
+pdf(file = "../results/plots/m_gs_au12.pdf",   
+    width = 6,
+    height = 4) 
+sjPlot::plot_model(m.au12.gs, type = "pred", colors = "social", terms = c("cq", "condition"), title = "") + labs(x = "Conversatinal Quality", y="Global synchrony level")
+dev.off()
+```
+### Lag zero synchrony
+#### Statistics
+```{r}
+df_au12 %>%
+  group_by(condition) %>%
+  get_summary_stats(lag_zero, type = "common")
+
+df_au12 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(lag_zero, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au12.lz <- lmer(lag_zero ~ condition + cq + (1 | dyadic), data = df_au12)
+summary(m.au12.lz) 
+performance::icc(m.au12.lz)
+m.au12.lz %>% anova()
+sjPlot::plot_model(m.au12.lz, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au12.lz)
+```
+### Peak synchrony
+#### Statistics
+```{r}
+df_au12 %>%
+  group_by(condition) %>%
+  get_summary_stats(peak_synchrony, type = "common")
+
+df_au12 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(peak_synchrony, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au12.ps <- lmer(peak_synchrony ~ condition*cq + (1 | dyadic), data = df_au12)
+summary(m.au12.ps) 
+performance::icc(m.au12.ps)
+m.au12.ps %>% anova()
+sjPlot::plot_model(m.au12.ps, type = "pred", terms = c("cq","condition"))
+sjPlot::tab_model(m.au12.ps)
+```
+### Peak lag
+#### Statistics
+```{r}
+df_au12 %>%
+  group_by(condition) %>%
+  get_summary_stats(abs_peak_lag, type = "common")
+
+df_au12 %>%
+  group_by(cq_level) %>%
+  get_summary_stats(abs_peak_lag, type = "common")
+```
+#### Mixed effect model
+```{r}
+# Fit the model
+m.au12.pl <- lmer(abs_peak_lag ~ condition*cq + (1 | dyadic), data = df_au12)
+summary(m.au12.pl)
+performance::icc(m.au12.pl)
+m.au12.pl %>% anova()
+sjPlot::plot_model(m.au12.pl, type = "pred", terms = c("cq", "condition"))
+sjPlot::tab_model(m.au12.pl)
+```
+
